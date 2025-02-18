@@ -1,5 +1,6 @@
 {
   "name": "midas-health-services-task",
+  "author": "Nabaraj Magar",
   "private": true,
   "version": "0.0.0",
   "type": "module",
