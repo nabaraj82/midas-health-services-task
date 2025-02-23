@@ -1,3 +1,4 @@
+import { Dayjs } from "dayjs";
 import { ReactNode } from "react";
 
 export interface Patient {
@@ -43,9 +44,17 @@ export type UniqueArrayProps<T> = {
   key?: keyof T;
 };
 
-export interface FilterData {
+export interface FilterInputData {
   searchText: string;
-  doctorName: string;
+  doctorName: string | null;
   fromDate: string;
   toDate: string;
+}
+
+export interface TempFilterState{
+  doctorName: string | null, 
+  fromDate: string,
+  fromDateObj: Dayjs | null,
+  toDate: string,
+  toDateObj: Dayjs | null
 }

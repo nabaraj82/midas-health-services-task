@@ -1,42 +1,43 @@
-import { useState, useMemo } from 'react';
-import { FilterData, Patient } from '../types';
+import { useMemo } from 'react';
+import { FilterInputData, Patient } from '../types';
+import { safeString } from '../utils/safeString';
 
-
-export const useFilters = (data: Patient[]) => {
-    const [filters, setFilters] = useState<FilterData>({ searchText: '', doctorName: '', fromDate: '', toDate: '' });
-
+export const useFilters = (data: Patient[], filterInputData: FilterInputData) => {
     const filteredData = useMemo(
-        () =>
-            data.filter((item) => {
-                //filter by search text
-                const matchesSearchText =
-                    item.name.toLowerCase().includes(filters.searchText.toLowerCase()) ||
-                    item.uhid.toLowerCase().includes(filters.searchText.toLowerCase()) ||
-                    item.doctorName.toLowerCase().includes(filters.searchText.toLowerCase());
+        () => {
+            const searchTextLower = safeString(filterInputData.searchText);
+            const doctorNameLower = safeString(filterInputData.doctorName);
+            const fromData = filterInputData.fromDate;
+            const toDate = filterInputData.toDate;
+            return data.filter(item => {
+                const name = safeString(item.name);
+                const uhid = safeString(item.uhid);
+                const doctorName = safeString(item.doctorName);
+                const itemDate = item.billingDateTime.split(' ')[0];
+                return (
+                    //Search Filter
+                    (
+                        name.includes(searchTextLower) ||
+                        uhid.includes(searchTextLower) ||
+                        doctorName.includes(searchTextLower)
+                    )
+                    &&
+                    //Date Filter
+                    (
+                        !fromData || itemDate >= fromData
+                    )
+                    &&
+                    (!toDate || itemDate <= toDate)
+                    &&
+                    //Filter by Docter
+                    (!doctorNameLower || doctorName.includes(doctorNameLower))
 
-
-                //filter by date range
-                const matchesDateRange =
-                    filters.fromDate && filters.toDate
-                        ? item.billingDateTime.split(' ')[0] >= filters.fromDate && 
-                        item.billingDateTime.split(' ')[0] <= filters.toDate 
-                        : true;
-                //filter by doctor name
-                const matchesDoctorName = filters.doctorName
-                    ? item.doctorName.toLowerCase().includes(filters.doctorName.toLowerCase())
-                    : true;
-
-                return matchesSearchText && matchesDoctorName && matchesDateRange;
-            }),
-        [filters, data]
+                )
+            })
+        },
+        [filterInputData, data]
     );
-
-    const handleClearFilters = () => setFilters({ searchText: '', doctorName: '', fromDate: '', toDate: '' });
-
     return {
-        filters,
-        setFilters,
         filteredData,
-        handleClearFilters
     };
 };

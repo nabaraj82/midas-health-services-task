@@ -13,6 +13,7 @@ import {
   DatePicker,
   Form,
   DatePickerProps,
+  Pagination,
 } from "antd";
 import { motion, AnimatePresence, LayoutGroup } from "framer-motion";
 import { utils, writeFile } from "xlsx";
@@ -25,16 +26,35 @@ import {
   FileSpreadsheet,
   EyeOff,
 } from "lucide-react";
-import type { Patient } from "../types";
+import type { FilterInputData, Patient, TempFilterState } from "../types";
 import { getPatientData } from "../constants/patientsData";
 import { data as statistics } from "../constants/statisticData";
 import useUniqueArray from "../hooks/useUniqueArray";
 import { useFilters } from "../hooks/useFilters";
+import { usePaginateData } from "../hooks/usePaginateData";
+
+const initialFilterState = {
+  searchText: "",
+  doctorName: "",
+  fromDate: "",
+  toDate: "",
+};
+
+const initialTempFilterState = {
+  doctorName: null,
+  fromDate: "",
+  fromDateObj: null,
+  toDate: "",
+  toDateObj: null,
+};
 
 const Overview: React.FC = () => {
+  const [tempFilterState, setTempFilterState] = useState<TempFilterState>(initialTempFilterState);
+  const [filterState, setFilterState] = useState<FilterInputData>(initialFilterState);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [showFilter, setShowFilter] = useState(true);
   const [pageSize, setPageSize] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
   const uniqueDataByName = useUniqueArray({
     data: patients,
     key: "doctorName",
@@ -45,9 +65,9 @@ const Overview: React.FC = () => {
     setPatients(patientData);
   }, []);
 
-  const { filters, setFilters, filteredData, handleClearFilters } =
-    useFilters(patients);
-  console.log(filters);
+  const { filteredData } = useFilters(patients, filterState);
+
+  const paginatedData = usePaginateData(filteredData, currentPage, pageSize);
 
   const queueNumbers = Array.from({ length: 50 }, (_, i) => ({
     value: i + 1,
@@ -155,18 +175,41 @@ const Overview: React.FC = () => {
     writeFile(wb, "patients_list.xlsx");
   }, [filteredData]);
 
-  const handleFromDateChange: DatePickerProps["onChange"] = (_, dateString) => {
-    setFilters({
-      ...filters,
+  const handleFromDateChange: DatePickerProps["onChange"] = (
+    date,
+    dateString
+  ) => {
+    setTempFilterState({
+      ...tempFilterState,
       fromDate: dateString.toString(),
+      fromDateObj: date,
     });
   };
-  const handleToDateChange: DatePickerProps["onChange"] = (_, dateString) => {
-    setFilters({
-      ...filters,
+  const handleToDateChange: DatePickerProps["onChange"] = (date, dateString) => {
+    setTempFilterState({
+      ...tempFilterState,
       toDate: dateString.toString(),
+      toDateObj: date
     });
   };
+
+  const handleSelectDoctorName = (value: string) => {
+    setTempFilterState({ ...tempFilterState, doctorName: value });
+  };
+
+  const handleFilter = () => {
+    setFilterState({
+      searchText: "",
+      fromDate: tempFilterState.fromDate,
+      toDate: tempFilterState.toDate,
+      doctorName: tempFilterState.doctorName,
+    });
+  };
+
+  const handleResetFilter = () => {
+    setFilterState(initialFilterState);
+    setTempFilterState(initialTempFilterState)
+  }
 
   return (
     <LayoutGroup>
@@ -179,12 +222,16 @@ const Overview: React.FC = () => {
             </div>
 
             <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
-              <Button type="default" icon={<Filter className="w-4 h-4" />}>
+              <Button
+                onClick={handleFilter}
+                type="default"
+                icon={<Filter className="w-4 h-4" />}
+              >
                 Filter
               </Button>
               <Button
                 type="default"
-                onClick={handleClearFilters}
+                onClick={handleResetFilter}
                 icon={<RotateCcw className="w-4 h-4" />}
               >
                 Reset
@@ -198,7 +245,7 @@ const Overview: React.FC = () => {
               onClick={() => setShowFilter(!showFilter)}
               icon={showFilter ? <EyeOff /> : <Eye className="w-4 h-4" />}
             >
-              { showFilter? 'Hide Filters' : "Show Filters"}
+              {showFilter ? "Hide Filters" : "Show Filters"}
             </Button>
 
             <Button
@@ -217,11 +264,11 @@ const Overview: React.FC = () => {
               }}
               className="flex flex-col space-y-3"
             >
-              <p className="text-lg font-medium">Filter</p>
               <div className="flex flex-col md:flex-row items-start md:items-end gap-4">
                 <Form layout="vertical" className="w-full md:w-auto">
-                  <Form.Item label="Period">
+                  <Form.Item label="Period" className="mb-0">
                     <DatePicker
+                      value={tempFilterState.fromDateObj}
                       placeholder="Select start date"
                       onChange={handleFromDateChange}
                       className="w-full"
@@ -229,8 +276,9 @@ const Overview: React.FC = () => {
                   </Form.Item>
                 </Form>
                 <Form layout="vertical" className="w-full md:w-auto">
-                  <Form.Item>
+                  <Form.Item className="mb-0">
                     <DatePicker
+                      value={tempFilterState.toDateObj}
                       placeholder="Select to date"
                       onChange={handleToDateChange}
                       className="w-full"
@@ -238,12 +286,11 @@ const Overview: React.FC = () => {
                   </Form.Item>
                 </Form>
                 <Form layout="vertical" className="w-full md:w-auto">
-                  <Form.Item label="Filter Via Doctor Name">
+                  <Form.Item label="Filter Via Doctor Name" className="mb-0">
                     <Select
-                      onChange={(value) =>
-                        setFilters({ ...filters, doctorName: value })
-                      }
                       placeholder="Select Doctor Name"
+                      value={tempFilterState.doctorName}
+                      onChange={(value) => handleSelectDoctorName(value)}
                       options={uniqueDataByName.map((item) => ({
                         value: item.doctorName,
                         label: item.doctorName,
@@ -276,9 +323,12 @@ const Overview: React.FC = () => {
                 <Input
                   placeholder="Search by UHID, name or doctor..."
                   prefix={<Search className="w-4 h-4 text-gray-400" />}
-                  value={filters.searchText}
+                  value={filterState.searchText}
                   onChange={(e) =>
-                    setFilters({ ...filters, searchText: e.target.value })
+                    setFilterState({
+                      ...filterState,
+                      searchText: e.target.value,
+                    })
                   }
                   className="w-full sm:w-80"
                 />
@@ -301,14 +351,35 @@ const Overview: React.FC = () => {
             </div>
             <Table
               columns={columns}
-              dataSource={filteredData}
+              dataSource={paginatedData}
               rowKey="id"
-              pagination={{
-                pageSize,
-                showSizeChanger: false,
-              }}
+              pagination={false}
               className="border rounded-lg"
               scroll={{ x: 1200 }}
+              footer={() => {
+                const totalEntries = filteredData.length;
+                if (totalEntries === 0) return "No entries found";
+
+                const startIndex = (currentPage - 1) * pageSize + 1;
+                const endIndex = Math.min(currentPage * pageSize, totalEntries);
+
+                return (
+                  <div className="flex justify-between items-center p-2">
+                    <div className="text-gray-600">
+                      Showing {startIndex} - {endIndex} of {totalEntries}
+                    </div>
+                    <Pagination
+                      current={currentPage}
+                      pageSize={pageSize}
+                      total={totalEntries}
+                      onChange={(page) => setCurrentPage(page)}
+                      showSizeChanger={false}
+                      className="ant-pagination"
+                      responsive
+                    />
+                  </div>
+                );
+              }}
             />
           </Card>
         </motion.div>

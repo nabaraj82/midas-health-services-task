@@ -34,5 +34,4 @@ export const getPatientData = (): Patient[] => {
     return memoizedData;
 };
 
-// Example function to generate random date-time
 
